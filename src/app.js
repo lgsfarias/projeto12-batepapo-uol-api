@@ -57,6 +57,11 @@ app.post('/participants', async (req, res) => {
     }
 });
 
+app.get('/participants', async (req, res) => {
+    const participants = await db.collection('participants').find().toArray();
+    res.send(participants);
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(chalk.green(`Server running on port ${PORT}`));
