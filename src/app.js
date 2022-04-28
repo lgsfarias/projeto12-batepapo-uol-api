@@ -58,8 +58,51 @@ app.post('/participants', async (req, res) => {
 });
 
 app.get('/participants', async (req, res) => {
-    const participants = await db.collection('participants').find().toArray();
-    res.send(participants);
+    try {
+        const participants = await db
+            .collection('participants')
+            .find()
+            .toArray();
+        res.send(participants);
+    } catch (error) {
+        res.status(500).send(error);
+    }
+});
+
+app.post('/messages', async (req, res) => {
+    const { to, text, type } = req.body;
+    const from = req.headers.user;
+
+    if (!to || !text) {
+        res.status(422).send('to e text devem ser strings não vazio');
+        return;
+    }
+
+    if (!['message', 'private_message'].includes(type)) {
+        res.status(422).send('type deve ser message ou private_message');
+        return;
+    }
+
+    const activeParticipant = await db
+        .collection('participants')
+        .findOne({ name: from });
+    if (!activeParticipant) {
+        res.status(422).send('participante não encontrado');
+        return;
+    }
+
+    try {
+        const messages = await db.collection('messages').insertOne({
+            from,
+            to,
+            text,
+            type,
+            time: new Date().toLocaleTimeString('pt-BR'),
+        });
+        res.sendStatus(201);
+    } catch (err) {
+        res.status(500).send(err);
+    }
 });
 
 const PORT = process.env.PORT || 5000;
