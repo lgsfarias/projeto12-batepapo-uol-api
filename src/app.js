@@ -59,14 +59,16 @@ setInterval(async () => {
 }, 15000);
 
 app.post('/participants', async (req, res) => {
+    const { name } = req.body;
+    const { value, error } = userSchema.validate(
+        { name },
+        { abortEarly: false }
+    );
+    if (error) {
+        res.status(422).send(error.details.map((e) => e.message));
+        return;
+    }
     try {
-        const { name } = req.body;
-        const { value, error } = userSchema.validate({ name });
-        if (error) {
-            res.status(422).send(error.details[0].message);
-            return;
-        }
-
         const participant = await db
             .collection('participants')
             .findOne({ name });
@@ -106,21 +108,23 @@ app.get('/participants', async (req, res) => {
 });
 
 app.post('/messages', async (req, res) => {
-    try {
-        const { to, text, type } = req.body;
-        const from = req.headers.user;
+    const { to, text, type } = req.body;
+    const from = req.headers.user;
 
-        const { value, error } = messageSchema.validate({
+    const { value, error } = messageSchema.validate(
+        {
             from,
             to,
             text,
             type,
-        });
-        if (error) {
-            res.status(422).send(error.details[0].message);
-            return;
-        }
-
+        },
+        { abortEarly: false }
+    );
+    if (error) {
+        res.status(422).send(error.details.map((e) => e.message));
+        return;
+    }
+    try {
         const activeParticipant = await db
             .collection('participants')
             .findOne({ name: from });
@@ -163,14 +167,16 @@ app.get('/messages', async (req, res) => {
 });
 
 app.post('/status', async (req, res) => {
+    const { user } = req.headers;
+    const { value, error } = userSchema.validate(
+        { name: user },
+        { abortEarly: false }
+    );
+    if (error) {
+        res.status(422).send(error.details.map((e) => e.message));
+        return;
+    }
     try {
-        const { user } = req.headers;
-        const { value, error } = userSchema.validate({ name: user });
-        if (error) {
-            res.status(422).send(error.details[0].message);
-            return;
-        }
-
         const activeParticipant = await db
             .collection('participants')
             .findOne({ name: user });
@@ -184,6 +190,29 @@ app.post('/status', async (req, res) => {
             .collection('participants')
             .updateOne({ name: user }, { $set: { lastStatus: Date.now() } });
 
+        res.sendStatus(200);
+    } catch (error) {
+        res.status(500).send(error);
+    }
+});
+
+app.delete('/messages/:id', async (req, res) => {
+    const { id } = req.params;
+    const { user } = req.headers;
+
+    try {
+        const message = await db
+            .collection('messages')
+            .findOne({ _id: ObjectId(id) });
+        if (!message) {
+            res.sendStatus(404);
+            return;
+        }
+        if (message.from !== user) {
+            res.sendStatus(401);
+            return;
+        }
+        await db.collection('messages').deleteOne({ _id: ObjectId(id) });
         res.sendStatus(200);
     } catch (error) {
         res.status(500).send(error);
