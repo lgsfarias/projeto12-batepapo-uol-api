@@ -10,8 +10,9 @@ const app = express();
 app.use(json());
 app.use(cors());
 
-const MONGO_URI = process.env.MONGO_URI;
-const mongoClient = new MongoClient(MONGO_URI);
+// MongoDB connection
+const mongoURI = process.env.MONGO_URI;
+const mongoClient = new MongoClient(mongoURI);
 let db;
 
 mongoClient.connect().then(() => {
@@ -19,26 +20,39 @@ mongoClient.connect().then(() => {
 });
 
 // Joi validation
-const schema = joi.object({
+const userSchema = joi.object({
     name: joi.string().required(),
+    lastStatus: joi.number().integer(),
+});
+
+const messageSchema = joi.object({
+    from: joi.string().required(),
+    to: joi.string().required(),
+    text: joi.string().required(),
+    type: joi
+        .string()
+        .regex(/^(message|private_message)$/)
+        .required(),
+    time: joi.string().required(),
 });
 
 app.post('/participants', async (req, res) => {
-    const { name } = req.body;
-    if (!name) {
-        res.status(422).send('name deve ser strings não vazio');
-        return;
-    }
-
-    const participant = await db
-        .collection('participants')
-        .findOne({ name: name });
-    if (participant) {
-        res.status(409).send('nome de usuário já está sendo usado');
-        return;
-    }
     try {
-        // const result = await schema.validateAsync({ name }); // Validação do Joi
+        const { name } = req.body;
+        const { error } = userSchema.validate({ name });
+        if (error) {
+            res.status(422).send(error.details[0].message);
+            return;
+        }
+
+        const participant = await db
+            .collection('participants')
+            .findOne({ name });
+        if (participant) {
+            res.status(409).send('nome de usuário já está sendo usado');
+            return;
+        }
+
         const participants = await db
             .collection('participants')
             .insertOne({ name, lastStatus: Date.now() });
@@ -102,6 +116,29 @@ app.post('/messages', async (req, res) => {
         res.sendStatus(201);
     } catch (err) {
         res.status(500).send(err);
+    }
+});
+
+app.get('/messages', async (req, res) => {
+    try {
+        const { limit } = req.query;
+        const { user } = req.headers;
+        const messages = await db
+            .collection('messages')
+            .find({
+                $or: [
+                    { type: 'message' },
+                    { type: 'status' },
+                    { to: user },
+                    { from: user },
+                ],
+            })
+            .toArray();
+
+        res.send(messages);
+    } catch (error) {
+        console.log(error);
+        res.status(500).send(error);
     }
 });
 
