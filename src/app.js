@@ -36,6 +36,28 @@ const messageSchema = joi.object({
     time: joi.string(),
 });
 
+setInterval(async () => {
+    const participants = await db.collection('participants').find({}).toArray();
+    const now = Date.now();
+
+    const inactiveParticipants = participants.filter(
+        (participant) =>
+            now - participant.lastStatus >
+            Number(process.env.INACTIVE_TIMEOUT || 10) * 1000
+    );
+
+    inactiveParticipants.forEach((participant) => {
+        db.collection('participants').deleteOne({ _id: participant._id });
+        db.collection('messages').insertOne({
+            from: participant.name,
+            to: 'Todos',
+            text: 'sai da sala...',
+            type: 'status',
+            time: new Date().toLocaleTimeString('pt-BR'),
+        });
+    });
+}, 15000);
+
 app.post('/participants', async (req, res) => {
     try {
         const { name } = req.body;
