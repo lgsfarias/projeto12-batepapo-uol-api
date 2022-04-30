@@ -1,5 +1,5 @@
 import express, { json } from 'express';
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 import cors from 'cors';
 import chalk from 'chalk';
 import joi from 'joi';
@@ -203,7 +203,7 @@ app.delete('/messages/:id', async (req, res) => {
     try {
         const message = await db
             .collection('messages')
-            .findOne({ _id: ObjectId(id) });
+            .findOne({ _id: new ObjectId(id) });
         if (!message) {
             res.sendStatus(404);
             return;
@@ -212,10 +212,65 @@ app.delete('/messages/:id', async (req, res) => {
             res.sendStatus(401);
             return;
         }
-        await db.collection('messages').deleteOne({ _id: ObjectId(id) });
+        await db.collection('messages').deleteOne({ _id: new ObjectId(id) });
         res.sendStatus(200);
     } catch (error) {
         res.status(500).send(error);
+    }
+});
+
+app.put('/messages/:id', async (req, res) => {
+    const { id } = req.params;
+    const { user } = req.headers;
+    const { to, text, type } = req.body;
+    const { value, error } = messageSchema.validate(
+        {
+            from: user,
+            to,
+            text,
+            type,
+        },
+        { abortEarly: false }
+    );
+    if (error) {
+        res.status(422).send(error.details.map((e) => e.message));
+        return;
+    }
+    try {
+        const activeParticipant = await db
+            .collection('participants')
+            .findOne({ name: user });
+        if (!activeParticipant) {
+            res.sendStatus(404);
+            return;
+        }
+
+        const message = await db
+            .collection('messages')
+            .findOne({ _id: new ObjectId(id) });
+        if (!message) {
+            res.sendStatus(404);
+            return;
+        }
+
+        if (message.from !== user) {
+            res.sendStatus(401);
+            return;
+        }
+
+        await db.collection('messages').updateOne(
+            { _id: new ObjectId(id) },
+            {
+                $set: {
+                    ...value,
+                    time: new Date().toLocaleTimeString('pt-BR'),
+                },
+            }
+        );
+        res.sendStatus(200);
+    } catch (error) {
+        res.status(500).send(error);
+        console.log(error);
     }
 });
 
