@@ -39,20 +39,17 @@ setInterval(async () => {
 }, 15000);
 
 app.post('/participants', async (req, res) => {
-    // let { name } = req.body;
-    const name = stripHtml(req.body.name).result.trim();
-
-    // name = stripHtml(name).result.trim();
-    // const name = stripHtml(req.body.name).result.trim();
-
     const { value, error } = userSchema.validate(
-        { name },
+        { ...req.body },
         { abortEarly: false }
     );
     if (error) {
         res.status(422).send(error.details.map((e) => e.message));
         return;
     }
+
+    const name = stripHtml(req.body.name).result.trim();
+
     try {
         const participant = await db
             .collection('participants')
