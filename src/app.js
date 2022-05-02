@@ -4,6 +4,7 @@ import { userSchema, messageSchema } from './models/schemas.js';
 import express, { json } from 'express';
 import { ObjectId } from 'mongodb';
 import cors from 'cors';
+import { stripHtml } from 'string-strip-html';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -38,7 +39,12 @@ setInterval(async () => {
 }, 15000);
 
 app.post('/participants', async (req, res) => {
-    const { name } = req.body;
+    // let { name } = req.body;
+    const name = stripHtml(req.body.name).result.trim();
+
+    // name = stripHtml(name).result.trim();
+    // const name = stripHtml(req.body.name).result.trim();
+
     const { value, error } = userSchema.validate(
         { name },
         { abortEarly: false }
@@ -68,7 +74,7 @@ app.post('/participants', async (req, res) => {
             time: new Date().toLocaleTimeString('pt-BR'),
         });
 
-        res.sendStatus(201);
+        res.status(201).send({ name });
     } catch (error) {
         res.status(500).send(error);
     }
@@ -87,7 +93,9 @@ app.get('/participants', async (req, res) => {
 });
 
 app.post('/messages', async (req, res) => {
-    const { to, text, type } = req.body;
+    const to = stripHtml(req.body.to).result.trim();
+    const text = stripHtml(req.body.text).result.trim();
+    const type = stripHtml(req.body.type).result.trim();
     const from = req.headers.user;
 
     const { value, error } = messageSchema.validate(
